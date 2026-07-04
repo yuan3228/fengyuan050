@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>抓捕任务 · 直线拦截挑战</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: 'Microsoft YaHei', sans-serif;
+        }
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: #1e293b;
+            margin: 0;
+            padding: 20px;
+        }
+        .game-container {
+            background: #0f172a;
+            padding: 25px;
+            border-radius: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+            border: 1px solid #334155;
+            max-width: 840px;
+            width: 100%;
+        }
+        h2 {
+            text-align: center;
+            color: #f1f5f9;
+            margin-top: 0;
+            margin-bottom: 4px;
+            font-size: 28px;
+            letter-spacing: 2px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #94a3b8;
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: auto;
+            background: #f8fafc;
+            border-radius: 20px;
+            border: 3px solid #475569;
+            cursor: crosshair;
+        }
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+            margin-top: 18px;
+            background: #1e293b;
+            padding: 16px 20px;
+            border-radius: 18px;
+            border: 1px solid #334155;
+        }
+        .slider-group {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-width: 110px;
+        }
+        .slider-group label {
+            color: #cbd5e1;
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+        .slider-group input[type="range"] {
+            width: 100%;
+            accent-color: #3b82f6;
+            height: 6px;
+            background: #334155;
+            border-radius: 10px;
+        }
+        .slider-value {
+            color: #facc15;
+            font-size: 16px;
+            font-weight: bold;
+            margin-left: 6px;
+        }
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .btn {
+            padding: 10px 22px;
+            border: none;
+            border-radius: 40px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            color: white;
+            letter-spacing: 0.5px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            white-space: nowrap;
+        }
+        .btn:active { transform: scale(0.94); }
+        .btn-red { background: #dc2626; }
+        .btn-red:hover { background: #ef4444; }
+        .btn-blue { background: #2563eb; }
+        .btn-blue:hover { background: #3b82f6; }
+        .btn-gray { background: #6b7280; }
+        .btn-gray:hover { background: #9ca3af; }
+        .info-bar {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            margin-top: 15px;
+            padding: 12px 16px;
+            background: #1e293b;
+            border-radius: 16px;
+            border-left: 5px solid #facc15;
+            gap: 6px;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            color: #e2e8f0;
+            font-size: 15px;
+            font-weight: 500;
+        }
+        .info-row .label {
+            color: #94a3b8;
+        }
+        .info-row .value {
+            font-weight: bold;
+            font-size: 18px;
+        }
+        .prev-expr {
+            color: #4ade80;
+        }
+        .curr-expr {
+            color: #3b82f6;
+        }
+        .dist-value {
+            color: #facc15;
+        }
+        #messageBox {
+            text-align: center;
+            margin-top: 8px;
+            font-size: 20px;
+            font-weight: bold;
+            color: #4ade80;
+            height: 30px;
+        }
+        @media (max-width: 600px) {
+            .controls { flex-direction: column; align-items: stretch; }
+            .btn-group { justify-content: center; }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h2>🚔 抓捕任务 · 直线拦截挑战</h2>
+        <div class="subtitle">🎯 劫匪在红色虚线某点停车，调整警察路线（蓝色）经过该点，绿色为调整前路线</div>
+        
+        <canvas id="gameCanvas" width="700" height="450"></canvas>
+
+        <!-- 控制区域 -->
+        <div class="controls">
+            <div class="slider-group">
+                <label>👮 警察斜率 k₂ <span class="slider-value" id="k2Display">1.0</span></label>
+                <input type="range" id="k2" min="-2.5" max="2.5" step="0.05" value="1.0">
+            </div>
+            <div class="slider-group">
+                <label>👮 警察截距 b₂ <span class="slider-value" id="b2Display">0.0</span></label>
+                <input type="range" id="b2" min="-4" max="4" step="0.05" value="0.0">
+            </div>
+        </div>
+
+        <!-- 按钮区域 -->
+        <div class="controls" style="margin-top: 10px; justify-content: center;">
+            <div class="btn-group">
+                <button class="btn btn-red" id="changeRobberBtn">🚨 劫匪变道</button>
+                <button class="btn btn-gray" id="toggleRobberBtn">🙈 隐藏劫匪路线</button>
+                <button class="btn btn-blue" id="toggleIconsBtn">🚗 显示图标</button>
+            </div>
+        </div>
+
+        <!-- 信息栏（上下排列） -->
+        <div class="info-bar">
+            <div class="info-row">
+                <span class="label">🟢 调整前警察路线：</span>
+                <span class="value prev-expr" id="prevExpr">y = 1.00x + 0.00</span>
+            </div>
+            <div class="info-row">
+                <span class="label">🔵 调整后警察路线：</span>
+                <span class="value curr-expr" id="currExpr">y = 1.00x + 0.00</span>
+            </div>
+            <div class="info-row">
+                <span class="label">📏 警察距汇合点：</span>
+                <span class="value dist-value" id="distDisplay">--</span>
+            </div>
+        </div>
+        <div id="messageBox"></div>
+    </div>
+
+    <script>
+        // ---------- DOM 引用 ----------
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const k2Slider = document.getElementById('k2');
+        const b2Slider = document.getElementById('b2');
+        const k2Display = document.getElementById('k2Display');
+        const b2Display = document.getElementById('b2Display');
+        const prevExpr = document.getElementById('prevExpr');
+        const currExpr = document.getElementById('currExpr');
+        const distDisplay = document.getElementById('distDisplay');
+        const messageBox = document.getElementById('messageBox');
+        const changeRobberBtn = document.getElementById('changeRobberBtn');
+        const toggleRobberBtn = document.getElementById('toggleRobberBtn');
+        const toggleIconsBtn = document.getElementById('toggleIconsBtn');
+
+        // ---------- 辅助函数：格式化系数（负值加括号） ----------
+        function formatCoeff(value) {
+            if (value < 0) {
+                return `(${value.toFixed(2)})`;
+            } else {
+                return value.toFixed(2);
+            }
+        }
+
+        function buildExpr(k, b) {
+            return `y = ${formatCoeff(k)}x + ${formatCoeff(b)}`;
+        }
+
+        // ---------- 游戏状态 ----------
+        let robberK = 0.5;
+        let robberB = 1.0;
+        let meetX = 0;
+        let meetY = 0;
+
+        let prevK2 = 1.0;
+        let prevB2 = 0.0;
+        let currK2 = 1.0;
+        let currB2 = 0.0;
+
+        let showIcons = false;
+        let showRobber = true;
+
+        // ---------- 坐标转换 ----------
+        const X_MIN = -5.5, X_MAX = 5.5;
+        const Y_MIN = -4.0, Y_MAX = 4.0;
+        const W = canvas.width, H = canvas.height;
+
+        function toCanvasX(mx) { return ((mx - X_MIN) / (X_MAX - X_MIN)) * W; }
+        function toCanvasY(my) { return H - ((my - Y_MIN) / (Y_MAX - Y_MIN)) * H; }
+        function toMathX(cx) { return (cx / W) * (X_MAX - X_MIN) + X_MIN; }
+        function toMathY(cy) { return Y_MAX - (cy / H) * (Y_MAX - Y_MIN); }
+
+        // ---------- 随机劫匪 ----------
+        function randomRobber() {
+            let newK = (Math.random() - 0.5) * 3.6;
+            let newB = (Math.random() - 0.5) * 5.0;
+            if (Math.abs(newK) < 0.15) newK = 0.3 * (newK > 0 ? 1 : -1);
+            return { k: newK, b: newB };
+        }
+
+        function generateMeetPoint(k, b) {
+            let x = (Math.random() - 0.5) * 6;
+            x = Math.min(Math.max(x, -3), 3);
+            let y = k * x + b;
+            if (y < Y_MIN + 0.5 || y > Y_MAX - 0.5) {
+                x = (Math.random() - 0.5) * 4;
+                y = k * x + b;
+            }
+            return { x, y };
+        }
+
+        function updateMeetPoint() {
+            const p = generateMeetPoint(robberK, robberB);
+            meetX = p.x;
+            meetY = p.y;
+        }
+
+        function setRobber(newK, newB) {
+            robberK = newK;
+            robberB = newB;
+            updateMeetPoint();
+
+            currK2 = parseFloat(k2Slider.value);
+            currB2 = parseFloat(b2Slider.value);
+            prevK2 = currK2;
+            prevB2 = currB2;
+
+            updateInfoAndDisplay();
+            messageBox.innerText = '🚗 劫匪变道，请调整警察路线！';
+            setTimeout(() => { if (messageBox.innerText.includes('劫匪变道')) messageBox.innerText = ''; }, 2500);
+        }
+
+        function changeRobber() {
+            const r = randomRobber();
+            setRobber(r.k, r.b);
+        }
+
+        function updateInfoAndDisplay() {
+            prevExpr.textContent = buildExpr(prevK2, prevB2);
+            currExpr.textContent = buildExpr(currK2, currB2);
+            k2Display.textContent = currK2.toFixed(2);
+            b2Display.textContent = currB2.toFixed(2);
+        }
+
+        // ---------- 绘制图例 ----------
+        function drawLegend() {
+            const x = 12, y = 12;
+            const lineHeight = 24;
+            ctx.font = '14px sans-serif';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'top';
+
+            ctx.fillStyle = 'rgba(255,255,255,0.75)';
+            ctx.fillRect(x-4, y-4, 210, 4*lineHeight+8);
+            ctx.strokeStyle = '#94a3b8';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x-4, y-4, 210, 4*lineHeight+8);
+
+            let idx = 0;
+            ctx.strokeStyle = '#dc2626';
+            ctx.lineWidth = 2.5;
+            ctx.setLineDash([6, 4]);
+            ctx.beginPath();
+            ctx.moveTo(x+2, y + idx*lineHeight + 10);
+            ctx.lineTo(x+30, y + idx*lineHeight + 10);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#1e293b';
+            ctx.fillText('劫匪路线', x+35, y + idx*lineHeight);
+            idx++;
+
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath();
+            ctx.arc(x+16, y + idx*lineHeight + 10, 6, 0, 2*Math.PI);
+            ctx.fill();
+            ctx.fillStyle = '#1e293b';
+            ctx.fillText('劫匪汇合点', x+35, y + idx*lineHeight);
+            idx++;
+
+            ctx.strokeStyle = '#22c55e';
+            ctx.lineWidth = 3;
+            ctx.setLineDash([]);
+            ctx.beginPath();
+            ctx.moveTo(x+2, y + idx*lineHeight + 10);
+            ctx.lineTo(x+30, y + idx*lineHeight + 10);
+            ctx.stroke();
+            ctx.fillStyle = '#1e293b';
+            ctx.fillText('调整前警察路线', x+35, y + idx*lineHeight);
+            idx++;
+
+            ctx.strokeStyle = '#2563eb';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(x+2, y + idx*lineHeight + 10);
+            ctx.lineTo(x+30, y + idx*lineHeight + 10);
+            ctx.stroke();
+            ctx.fillStyle = '#1e293b';
+            ctx.fillText('调整后警察路线', x+35, y + idx*lineHeight);
+        }
+
+        // ---------- 绘制 ----------
+        function draw() {
+            ctx.clearRect(0, 0, W, H);
+
+            // 网格
+            ctx.strokeStyle = '#d1d5db';
+            ctx.lineWidth = 0.5;
+            for (let x = -5; x <= 5; x++) {
+                if (x === 0) continue;
+                const cx = toCanvasX(x);
+                ctx.beginPath();
+                ctx.moveTo(cx, 0);
+                ctx.lineTo(cx, H);
+                ctx.stroke();
+            }
+            for (let y = -4; y <= 4; y++) {
+                if (y === 0) continue;
+                const cy = toCanvasY(y);
+                ctx.beginPath();
+                ctx.moveTo(0, cy);
+                ctx.lineTo(W, cy);
+                ctx.stroke();
+            }
+
+            // ---- 坐标轴 ----
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.moveTo(0, toCanvasY(0));
+            ctx.lineTo(W, toCanvasY(0));
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(toCanvasX(0), 0);
+            ctx.lineTo(toCanvasX(0), H);
+            ctx.stroke();
+
+            // 箭头
+            const arrowSize = 10;
+            const xArrowX = W - 2;
+            const xArrowY = toCanvasY(0);
+            ctx.fillStyle = '#1e293b';
+            ctx.beginPath();
+            ctx.moveTo(xArrowX, xArrowY);
+            ctx.lineTo(xArrowX - arrowSize, xArrowY - arrowSize/2);
+            ctx.lineTo(xArrowX - arrowSize, xArrowY + arrowSize/2);
+            ctx.closePath();
+            ctx.fill();
+
+            const yArrowX = toCanvasX(0);
+            const yArrowY = 2;
+            ctx.beginPath();
+            ctx.moveTo(yArrowX, yArrowY);
+            ctx.lineTo(yArrowX - arrowSize/2, yArrowY + arrowSize);
+            ctx.lineTo(yArrowX + arrowSize/2, yArrowY + arrowSize);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.fillStyle = '#1e293b';
+            ctx.font = 'bold 16px sans-serif';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'bottom';
+            ctx.fillText('x', xArrowX - 20, toCanvasY(0) - 8);
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            ctx.fillText('y', toCanvasX(0) + 12, yArrowY + 18);
+
+            // 刻度
+            ctx.font = '12px sans-serif';
+            ctx.fillStyle = '#1e293b';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            for (let x = -5; x <= 5; x++) {
+                if (x === 0) continue;
+                const cx = toCanvasX(x);
+                const cy = toCanvasY(0);
+                ctx.beginPath();
+                ctx.moveTo(cx, cy - 5);
+                ctx.lineTo(cx, cy + 5);
+                ctx.stroke();
+                ctx.fillText(x.toString(), cx, cy + 8);
+            }
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'middle';
+            for (let y = -4; y <= 4; y++) {
+                if (y === 0) continue;
+                const cx = toCanvasX(0);
+                const cy = toCanvasY(y);
+                ctx.beginPath();
+                ctx.moveTo(cx - 5, cy);
+                ctx.lineTo(cx + 5, cy);
+                ctx.stroke();
+                ctx.fillText(y.toString(), cx - 10, cy);
+            }
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'top';
+            ctx.fillText('O', toCanvasX(0) - 12, toCanvasY(0) + 4);
+
+            // ---- 劫匪路线 ----
+            if (showRobber) {
+                ctx.strokeStyle = '#dc2626';
+                ctx.lineWidth = 3.5;
+                ctx.setLineDash([8, 6]);
+                ctx.beginPath();
+                let first = true;
+                for (let cx = 0; cx <= W; cx += 2) {
+                    const mx = toMathX(cx);
+                    const my = robberK * mx + robberB;
+                    if (my < Y_MIN - 1 || my > Y_MAX + 1) continue;
+                    const cy = toCanvasY(my);
+                    if (first) { ctx.moveTo(cx, cy); first = false; }
+                    else ctx.lineTo(cx, cy);
+                }
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // 汇合点
+                const meetCX = toCanvasX(meetX);
+                const meetCY = toCanvasY(meetY);
+                ctx.shadowColor = '#ef4444';
+                ctx.shadowBlur = 20;
+                ctx.fillStyle = '#ef4444';
+                ctx.beginPath();
+                ctx.arc(meetCX, meetCY, 10, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                ctx.strokeStyle = '#b91c1c';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(meetCX, meetCY, 14, 0, 2 * Math.PI);
+                ctx.stroke();
+            }
+
+            // ---- 警察路线（调整前绿色，调整后蓝色） ----
+            ctx.strokeStyle = '#22c55e';
+            ctx.lineWidth = 3;
+            ctx.setLineDash([]);
+            ctx.beginPath();
+            let first = true;
+            for (let cx = 0; cx <= W; cx += 2) {
+                const mx = toMathX(cx);
+                const my = prevK2 * mx + prevB2;
+                if (my < Y_MIN - 1 || my > Y_MAX + 1) continue;
+                const cy = toCanvasY(my);
+                if (first) { ctx.moveTo(cx, cy); first = false; }
+                else ctx.lineTo(cx, cy);
+            }
+            ctx.stroke();
+
+            ctx.strokeStyle = '#2563eb';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            first = true;
+            for (let cx = 0; cx <= W; cx += 2) {
+                const mx = toMathX(cx);
+                const my = currK2 * mx + currB2;
+                if (my < Y_MIN - 1 || my > Y_MAX + 1) continue;
+                const cy = toCanvasY(my);
+                if (first) { ctx.moveTo(cx, cy); first = false; }
+                else ctx.lineTo(cx, cy);
+            }
+            ctx.stroke();
+
+            // ---- 距离和成功判定 ----
+            const A = currK2;
+            const B = -1;
+            const C = currB2;
+            const dist = Math.abs(A * meetX + B * meetY + C) / Math.sqrt(A*A + B*B);
+            const threshold = 0.15;
+            const isMeet = (dist < threshold);
+
+            if (isMeet) {
+                distDisplay.textContent = '🎉 成功汇合！';
+                distDisplay.style.color = '#4ade80';
+                messageBox.innerText = '✅ 警察成功抵达汇合点！';
+                // 星星只在劫匪路线可见时绘制
+                if (showRobber) {
+                    const meetCX = toCanvasX(meetX);
+                    const meetCY = toCanvasY(meetY);
+                    ctx.fillStyle = '#facc15';
+                    ctx.shadowColor = '#facc15';
+                    ctx.shadowBlur = 30;
+                    ctx.font = '30px sans-serif';
+                    ctx.fillText('⭐', meetCX-15, meetCY-30);
+                    ctx.shadowBlur = 0;
+                }
+            } else {
+                distDisplay.textContent = dist.toFixed(3) + ' 单位';
+                distDisplay.style.color = '#facc15';
+                if (messageBox.innerText.includes('成功')) messageBox.innerText = '';
+            }
+
+            // ---- 图标 ----
+            if (showIcons) {
+                const robberIconX = 2;
+                const robberIconY = robberK * robberIconX + robberB;
+                if (robberIconY > Y_MIN && robberIconY < Y_MAX) {
+                    const cX = toCanvasX(robberIconX);
+                    const cY = toCanvasY(robberIconY);
+                    ctx.font = '32px sans-serif';
+                    ctx.fillText('🚗', cX-20, cY-20);
+                }
+                const policeIconX = -2;
+                const policeIconY = currK2 * policeIconX + currB2;
+                if (policeIconY > Y_MIN && policeIconY < Y_MAX) {
+                    const cX = toCanvasX(policeIconX);
+                    const cY = toCanvasY(policeIconY);
+                    ctx.font = '32px sans-serif';
+                    ctx.fillText('🚔', cX-20, cY-20);
+                }
+            }
+
+            drawLegend();
+        }
+
+        // ---------- 游戏循环 ----------
+        function gameLoop() {
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // ---------- 事件绑定 ----------
+        k2Slider.addEventListener('input', () => {
+            currK2 = parseFloat(k2Slider.value);
+            k2Display.textContent = currK2.toFixed(2);
+            currExpr.textContent = buildExpr(currK2, currB2);
+        });
+
+        b2Slider.addEventListener('input', () => {
+            currB2 = parseFloat(b2Slider.value);
+            b2Display.textContent = currB2.toFixed(2);
+            currExpr.textContent = buildExpr(currK2, currB2);
+        });
+
+        changeRobberBtn.addEventListener('click', changeRobber);
+
+        toggleRobberBtn.addEventListener('click', () => {
+            showRobber = !showRobber;
+            toggleRobberBtn.textContent = showRobber ? '🙈 隐藏劫匪路线' : '🐵 显示劫匪路线';
+        });
+
+        toggleIconsBtn.addEventListener('click', () => {
+            showIcons = !showIcons;
+            toggleIconsBtn.textContent = showIcons ? '🚫 隐藏图标' : '🚗 显示图标';
+        });
+
+        // ---------- 初始化 ----------
+        function init() {
+            const r = randomRobber();
+            robberK = r.k;
+            robberB = r.b;
+            updateMeetPoint();
+
+            currK2 = parseFloat(k2Slider.value);
+            currB2 = parseFloat(b2Slider.value);
+            prevK2 = currK2;
+            prevB2 = currB2;
+
+            updateInfoAndDisplay();
+            distDisplay.textContent = '--';
+            requestAnimationFrame(gameLoop);
+        }
+
+        init();
+    </script>
+</body>
+</html>
